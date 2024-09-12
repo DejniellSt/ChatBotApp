@@ -1,0 +1,103 @@
+﻿@page "/"
+@using Newtonsoft.Json;
+@using System.Text;
+
+<PageTitle>Chatbot</PageTitle>
+
+<div class="container">
+    <div class="row">
+        <div class="col-4">
+            <p>@testing</p>
+        </div>
+        <div class="col-4">
+            <div class="messages">
+                @for (int i = 0; i < messages.Count; i++)
+                {
+                    @if (i % 2 == 0)
+                    {
+                        <div class="question">@messages[i]</div>
+                    }
+                    else
+                    {
+                        <div class="response">@messages[i]</div>
+                    }
+                }
+
+            </div>
+            <div class="textMessage">
+                <input @bind="message" />
+                <button @onclick="SendMessage">Send</button>
+            </div>
+        </div>
+        <div class="col-4">
+        </div>
+
+    </div>
+</div>
+
+@code {
+    public string message;
+    public string testing;
+    public List<string> messages = new List<string>();
+    private static HttpClient Http = new HttpClient();
+
+    protected override async Task OnInitializedAsync()
+    {
+
+    }
+
+    public async Task SendMessage()
+    {
+        try
+        {
+            messages.Add(message);
+
+            var apiKey = "sk-dJjh47wj4MAjvCNLIExQXfoPRsgJSrZUp6NxVggvvST3BlbkFJOJy2D9Wwe9v4ALuAwI6UPBMtqOpxtWrHLL8KsgZ_MA";
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+            var jsonContent = new
+            {
+                model = "gpt-3.5-turbo",
+                messages = new[]
+                {
+                new { role = "user", content = message }
+            }
+            };
+
+            var response = await Http.PostAsync("https://api.openai.com/v1/chat/completions",
+                new StringContent(JsonConvert.SerializeObject(jsonContent), Encoding.UTF8, "application/json"));
+
+            response.EnsureSuccessStatusCode();
+
+            var resContext = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"API Response: {resContext}");
+
+            var data = JsonConvert.DeserializeObject<dynamic>(resContext);
+
+            if (data?.choices?.Count > 0)
+            {
+                messages.Add(data.choices[0].message.content.ToString());
+            }
+            else
+            {
+                Console.WriteLine("No choices in API response.");
+                messages.Add("No response from API.");
+            }
+        }
+        catch (HttpRequestException httpEx)
+        {
+            Console.WriteLine($"HTTP Request Error: {httpEx.Message}");
+            messages.Add($"HTTP Request Error: {httpEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in SendMessage: {ex.Message}");
+            messages.Add($"Error: {ex.Message}");
+        }
+        finally
+        {
+            StateHasChanged(); 
+        }
+    }
+
+}
